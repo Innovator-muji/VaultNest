@@ -1,0 +1,41 @@
+services:
+  db:
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-vaultnest}
+      POSTGRES_USER: ${POSTGRES_USER:-vaultnest}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-vaultnest}
+    volumes: ["pgdata:/var/lib/postgresql/data"]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U vaultnest -d vaultnest"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+  mailpit:
+    image: axllent/mailpit:v1.26
+    ports:
+      - "8025:8025"
+      - "1025:1025"
+  api:
+    build: ./backend
+    environment:
+      DATABASE_URL: postgresql+psycopg://vaultnest:${POSTGRES_PASSWORD:-vaultnest}@db:5432/vaultnest
+      JWT_SECRET: ${JWT_SECRET:-local-dev-change-this-secret}
+      APP_URL: ${APP_URL:-http://localhost:5173}
+      SMTP_HOST: ${SMTP_HOST:-mailpit}
+      SMTP_PORT: ${SMTP_PORT:-1025}
+      SMTP_USER: ${SMTP_USER:-}
+      SMTP_PASSWORD: ${SMTP_PASSWORD:-}
+      MAIL_FROM: ${MAIL_FROM:-VaultNest <no-reply@vaultnest.local>}
+      VERIFY_HOURS: ${VERIFY_HOURS:-24}
+      ADMIN_EMAIL: ${ADMIN_EMAIL:-admin@vaultnest.local}
+      ADMIN_PASSWORD: ${ADMIN_PASSWORD:-AdminLocalPassword123!}
+    depends_on:
+      db: {condition: service_healthy}
+      mailpit: {condition: service_started}
+    ports: ["8000:8000"]
+  web:
+    build: ./frontend
+    depends_on: [api]
+    ports: ["5173:80"]
+volumes: {pgdata: {}}
